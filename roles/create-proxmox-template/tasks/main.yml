@@ -1,0 +1,102 @@
+- name: Download the cloud image
+  ansible.builtin.get_url:
+    url: "{{ cloud_image_url }}"
+    dest: "{{ cloud_image_storage }}/{{ cloud_image_name }}"
+    owner: root
+    group: root
+    mode: '0644'
+    timeout: 60
+
+- name: Check if VM ID is in use
+  ansible.builtin.command: "qm status {{ vm_id }}"
+  register: vm_status
+  ignore_errors: true
+  changed_when: false
+
+- name: Create VM if not exist
+  ansible.builtin.shell: >
+    qm create {{ vm_id }}
+    --name {{ template_name }}{{ new_hostname }}
+    --core {{ cores }}
+    --memory {{ memory }}
+    --net0 virtio,bridge=vmbr0
+  when: vm_status.rc != 0
+  register: create_vm
+  changed_when: create_vm.rc == 0
+
+- name: Import the disk to Proxmox
+  ansible.builtin.shell: >
+    qm importdisk {{ vm_id }}
+    {{ cloud_image_storage }}/{{ cloud_image_name }}
+    {{ proxmox_storage }}
+  when: vm_status.rc != 0
+  register: import_disk
+  changed_when: import_disk.rc == 0
+
+- name: Attach the disk to the VM
+  ansible.builtin.shell: >
+    qm set {{ vm_id }}
+    --scsihw virtio-scsi-pci
+    --scsi0 {{ proxmox_storage }}:{{ vm_id }}/vm-{{ vm_id }}-disk-0.raw
+  when: vm_status.rc != 0
+  register: attach_disk
+  changed_when: attach_disk.rc == 0
+
+- name: Configure VM settings with Cloud-Init and network
+  ansible.builtin.shell: >
+    qm set {{ vm_id }}
+    --ide2 {{ proxmox_storage }}:cloudinit
+    --boot c
+    --bootdisk scsi0
+    --serial0 socket
+    --vga serial0
+    --citype nocloud
+    --ipconfig0 ip=dhcp
+  when: vm_status.rc != 0
+  register: cloud_init
+  changed_when: cloud_init.rc == 0
+
+- name: Enable QEMU Agent
+  ansible.builtin.shell: |
+    qm set {{ vm_id }} --agent 1
+  when: vm_status.rc != 0 and QEMU_AGENT | bool
+  register: enable_qemu_agent
+  changed_when: enable_qemu_agent.rc == 0
+
+- name: Resize disk
+  ansible.builtin.shell: |
+    qm resize {{ vm_id }} scsi0 +{{ resize_disk }}G
+  when: vm_status.rc != 0
+  register: resize_disk_status
+  changed_when: resize_disk_status.rc == 0
+
+- name: Copy user-data to Proxmox
+  ansible.builtin.template:
+    src: "{{ user_data_file }}"
+    dest: "{{ user_data_file_storage_path }}/user-data{{ vm_id }}.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+  when: vm_status.rc != 0
+  register: copy_user_data
+
+- name: Attach user-data to VM
+  ansible.builtin.shell: |
+    qm set {{ vm_id }} --cicustom "user={{ user_data_file_storage }}:snippets/user-data{{ vm_id }}.yaml"
+  when: vm_status.rc != 0
+  register: attach_user_data
+  changed_when: attach_user_data.rc == 0
+
+- name: Enable UEFI
+  ansible.builtin.shell: |
+    qm set {{ vm_id }} --bios ovmf --machine q35 --efidisk0 {{ proxmox_storage }}:0
+  when: vm_status.rc != 0 and UEFI | bool
+  register: enable_uefi
+  changed_when: enable_uefi.rc == 0
+
+- name: Convert VM to template
+  ansible.builtin.shell: |
+    qm template {{ vm_id }}
+  when: vm_status.rc != 0
+  register: convert_template
+  changed_when: convert_template.rc == 0

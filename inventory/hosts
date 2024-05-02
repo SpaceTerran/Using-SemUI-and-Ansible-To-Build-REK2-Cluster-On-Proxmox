@@ -1,0 +1,11 @@
+proxmox:
+  hosts:
+    proxmox-amd-mini-0:
+      ansible_host: 192.168.1.132
+      ansible_ssh_user: root
+    proxmox-amd-mini-1:
+      ansible_host: 192.168.1.130
+      ansible_ssh_user: root
+    proxmox-amd-mini-2:
+      ansible_host: 192.168.1.131
+      ansible_ssh_user: root    

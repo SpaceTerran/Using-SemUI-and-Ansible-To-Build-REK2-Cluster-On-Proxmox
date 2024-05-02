@@ -1,0 +1,26 @@
+- name: Check if vm_template_id is a template
+  ansible.builtin.shell: >
+    qm config {{ item.vm_template_id }} | grep 'template: 1'
+  register: vm_is_template
+  loop: "{{ vm_list }}"
+  ignore_errors: true
+  changed_when: false
+
+- name: Filter VMs that are templates
+  ansible.builtin.set_fact:
+    templates_to_delete: "{{ vm_is_template.results | selectattr('stdout', 'match', 'template: 1') | map(attribute='item') | list }}"
+
+- name: Print templates to delete
+  ansible.builtin.debug:
+    msg: "Templates to delete: {{ templates_to_delete }}"
+
+- name: Delete template
+  ansible.builtin.shell: >
+    qm destroy {{ item.vm_template_id }}
+    --purge true
+    --destroy-unreferenced-disks true
+  when: item.vm_template_id in templates_to_delete | map(attribute='vm_template_id') | list
+  loop: "{{ vm_list }}"
+  register: vm_destroy
+  ignore_errors: true
+  changed_when: "vm_destroy.rc == 0"

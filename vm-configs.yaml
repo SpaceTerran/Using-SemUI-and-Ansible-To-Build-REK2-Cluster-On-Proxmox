@@ -1,0 +1,56 @@
+vm_list:
+  - vm_id: 200
+    name: 'RKE2-worker-0'
+    mac: '52:54:00:8B:76:EF'
+    vlan: '521'
+    target: 'proxmox-amd-mini-0'
+    vm_template_id: '5001'
+    cores: 6
+    memory: 16384
+    resize_disk: 100  # in GB, use this to increase the disk size of the VM
+    QEMU_AGENT: true
+    UEFI: true
+  - vm_id: 201
+    name: 'RKE2-master-0'
+    mac: '52:54:00:05:F3:C2'
+    vlan: '521'
+    target: 'proxmox-amd-mini-0'
+    vm_template_id: '5002'
+    cores: 6
+    memory: 16384
+    resize_disk: 100  # in GB, use this to increase the disk size of the VM
+    QEMU_AGENT: true
+    UEFI: true
+  - vm_id: 202
+    name: 'RKE2-master-1'
+    mac: '52:54:00:96:BC:1F'
+    vlan: '521'
+    target: 'proxmox-amd-mini-1'
+    vm_template_id: '5003'
+    cores: 6
+    memory: 16384
+    resize_disk: 100  # in GB, use this to increase the disk size of the VM
+    QEMU_AGENT: true
+    UEFI: true
+  - vm_id: 203
+    name: 'RKE2-worker-1'
+    mac: '52:54:00:C3:5D:4A'
+    vlan: '521'
+    target: 'proxmox-amd-mini-1'
+    vm_template_id: '5004'
+    cores: 6
+    memory: 16384
+    resize_disk: 100  # in GB, use this to increase the disk size of the VM
+    QEMU_AGENT: true
+    UEFI: true
+  - vm_id: 204
+    name: 'RKE2-master-2'
+    mac: '52:54:00:E3:8C:B7'
+    vlan: '521'
+    target: 'proxmox-amd-mini-2'
+    vm_template_id: '5005'
+    cores: 6
+    memory: 16384
+    resize_disk: 100  # in GB, use this to increase the disk size of the VM
+    QEMU_AGENT: true
+    UEFI: true

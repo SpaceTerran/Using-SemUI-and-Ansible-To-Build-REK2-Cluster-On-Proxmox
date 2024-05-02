@@ -1,0 +1,53 @@
+- name: Prepare Proxmox template with Cloud-Init
+  hosts: proxmox-amd-mini-0, proxmox-amd-mini-1, proxmox-amd-mini-2
+  become: false
+  vars:
+    proxmox_storage: "truenas"  # the storage id where the images and VMs will be stored # default is "local-lvm"
+
+    # Cloud image settings
+    cloud_image_url: "https://cloud-images.ubuntu.com/releases/jammy/release/ubuntu-22.04-server-cloudimg-amd64.img"
+    cloud_image_storage: "/var/lib/vz/template/iso"
+    cloud_image_name: "ubuntu-22.04-server-cloudimg-amd64.img"
+
+    # Template Name
+    template_name: "ubuntu-22.04-"
+
+    # Cloud-Init User Data settings
+    user_data_file: "user-data.yaml.j2"  # make sure this file exists and contains your cloud-init user data
+    user_data_file_storage: "truenas-userdata"  # the storage id where the snippets will be stored. # default is "local"
+    user_data_file_storage_path: "/mnt/pve/truenas-userdata/snippets" # default is "/var/lib/vz/snippets"
+
+    # Cloud-Init login settings
+    ciuser: "jimraynor"
+
+  tasks:
+    - name: Include vault secrets
+      ansible.builtin.include_vars:
+        file: secrets.yaml
+      no_log: true
+
+    - name: Include VM Config
+      ansible.builtin.include_vars:
+        file: vm-configs.yaml
+
+    - name: Generate SHA-512 hashed password
+      ansible.builtin.set_fact:
+        encrypted_password: "{{ cipassword | password_hash('sha512', 'passlib') }}"
+
+    - name: Create Proxmox templates
+      ansible.builtin.include_role:
+        name: create-proxmox-template
+      vars:
+        vm_id: "{{ item.vm_template_id }}"
+        new_hostname: "{{ item.name }}"
+        cores: "{{ item.cores }}"
+        memory: "{{ item.memory }}"
+        resize_disk: "{{ item.resize_disk }}"
+        QEMU_AGENT: "{{ item.QEMU_AGENT }}"
+        UEFI: "{{ item.UEFI }}"
+      with_items: "{{ vm_list }}"
+      when: inventory_hostname == item.target
+
+    - name: Create Proxmox VMs
+      ansible.builtin.include_role:
+        name: create-proxmox-vm

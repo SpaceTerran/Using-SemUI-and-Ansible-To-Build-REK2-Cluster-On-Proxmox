@@ -1,0 +1,52 @@
+- name: Gather VM status from Proxmox
+  ansible.builtin.shell: >
+    qm status {{ item.vm_id }}
+  loop: "{{ vm_list }}"
+  register: vm_status
+  ignore_errors: true
+  changed_when: false  # This is just a check; we aren't changing anything.
+
+- name: Filter VMs that need to be created
+  ansible.builtin.set_fact:
+    vms_to_create: "{{ vm_status.results | selectattr('rc', 'equalto', 2) | map(attribute='item') | list }}"
+
+- name: Check if Template IDs exist for VMs to be created
+  ansible.builtin.shell: >
+    qm status {{ item.vm_template_id }}
+  loop: "{{ vms_to_create }}"
+  register: template_status
+  failed_when: template_status.rc == 1
+  changed_when: false  # This is just a check.
+
+- name: Filter templates that are valid and can be cloned
+  ansible.builtin.set_fact:
+    templates_ready_to_clone: "{{ template_status.results | selectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
+
+- name: Clone VMs from templates
+  ansible.builtin.shell: >
+    qm clone {{ item.vm_template_id }} {{ item.vm_id }}
+    --name {{ item.name }}
+    --full true
+    --storage {{ proxmox_storage }}
+    --target {{ item.target }}
+    --format qcow2
+  loop: "{{ templates_ready_to_clone }}"
+  register: clone_result
+  changed_when: clone_result.rc == 0
+
+- name: Set networking for VMs
+  ansible.builtin.shell: >
+    qm set {{ item.item.vm_id }}
+    --net0 model=virtio,bridge=vmbr0,macaddr={{ item.item.mac }},tag={{ item.item.vlan }}
+  loop: "{{ clone_result.results }}"
+  when: item.rc == 0
+  register: set_network_result
+  changed_when: set_network_result.rc == 0
+
+- name: Start the cloned VMs
+  ansible.builtin.shell: >
+    qm start {{ item.item.vm_id }}
+  loop: "{{ clone_result.results }}"
+  when: item.rc == 0
+  register: start_vm_result
+  changed_when: start_vm_result.rc == 0

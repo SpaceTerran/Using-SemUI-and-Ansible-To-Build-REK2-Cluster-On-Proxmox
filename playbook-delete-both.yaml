@@ -1,0 +1,19 @@
+- name: Prepare Proxmox template with Cloud-Init
+  hosts: proxmox-amd-mini-0, proxmox-amd-mini-1, proxmox-amd-mini-2
+  become: false
+  vars:
+    delete_templates_only: false  # When true, only delete templates
+
+  tasks:
+    - name: Include VM Config
+      ansible.builtin.include_vars:
+        file: vm-configs.yaml
+
+    - name: Delete proxmox templates
+      ansible.builtin.include_role:
+        name: delete-proxmox-templates
+
+    - name: Delete proxmox vms
+      ansible.builtin.include_role:
+        name: delete-proxmox-vms
+      when: not delete_templates_only

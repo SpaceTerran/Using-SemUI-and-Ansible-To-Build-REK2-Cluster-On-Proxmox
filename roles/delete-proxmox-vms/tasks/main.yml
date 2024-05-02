@@ -1,0 +1,51 @@
+- name: Gather VM status from Proxmox
+  ansible.builtin.shell: >
+    qm status {{ item.vm_id }}
+  loop: "{{ vm_list }}"
+  register: vm_status
+  ignore_errors: true
+  changed_when: false  # This is just a check; we aren't changing anything.
+
+- name: Filter VMs that are stopped
+  ansible.builtin.set_fact:
+    vms_to_delete: "{{ vm_status.results | selectattr('stdout', 'search', 'status: stopped') | map(attribute='item') | list }}"
+
+- name: Print vms to delete
+  ansible.builtin.debug:
+    msg: "VMs to delete: {{ vms_to_delete }}"
+
+- name: Delete template
+  ansible.builtin.shell: >
+    qm destroy {{ item.vm_id }}
+    --purge true
+    --destroy-unreferenced-disks true
+  when: item in vms_to_delete
+  loop: "{{ vm_list }}"
+  register: vm_destroy
+  ignore_errors: true
+  changed_when: "vm_destroy.rc == 0"
+
+- name: Filter VMs that are running
+  ansible.builtin.set_fact:
+    vms_to_delete: "{{ vm_status.results | selectattr('stdout', 'search', 'status: running') | map(attribute='item') | list }}"
+
+# task to qm stop vm
+- name: Stop VM
+  ansible.builtin.shell: >
+    qm stop {{ item.vm_id }}
+  when: item in vms_to_delete
+  loop: "{{ vm_list }}"
+  register: vm_stop
+  ignore_errors: true
+  changed_when: "vm_stop.rc == 0"
+
+- name: Delete template
+  ansible.builtin.shell: >
+    qm destroy {{ item.vm_id }}
+    --purge true
+    --destroy-unreferenced-disks true
+  when: item in vms_to_delete
+  loop: "{{ vm_list }}"
+  register: vm_destroy
+  ignore_errors: true
+  changed_when: "vm_destroy.rc == 0"
